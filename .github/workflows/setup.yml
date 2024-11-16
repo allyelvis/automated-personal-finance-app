@@ -1,0 +1,60 @@
+name: First Time Setup
+
+on:
+  push:
+    paths:
+      - "setup_backend.sh"
+      - "setup_frontend.sh"
+
+jobs:
+  setup:
+    runs-on: ubuntu-latest
+
+    steps:
+    # Checkout code
+    - name: Checkout repository
+      uses: actions/checkout@v3
+
+    # Set up backend
+    - name: Check and run setup_backend.sh
+      id: setup_backend
+      run: |
+        if [ -f "setup_backend.sh" ]; then
+          if ! grep -q "executed" ".backend_setup_status" 2>/dev/null || [ "$(sha256sum setup_backend.sh | awk '{print $1}')" != "$(cat .backend_setup_status)" ]; then
+            chmod +x setup_backend.sh
+            ./setup_backend.sh
+            sha256sum setup_backend.sh | awk '{print $1}' > .backend_setup_status
+          else
+            echo "Backend setup script already executed with no changes."
+          fi
+        else
+          echo "setup_backend.sh not found."
+        fi
+      shell: bash
+
+    # Set up frontend
+    - name: Check and run setup_frontend.sh
+      id: setup_frontend
+      run: |
+        if [ -f "setup_frontend.sh" ]; then
+          if ! grep -q "executed" ".frontend_setup_status" 2>/dev/null || [ "$(sha256sum setup_frontend.sh | awk '{print $1}')" != "$(cat .frontend_setup_status)" ]; then
+            chmod +x setup_frontend.sh
+            ./setup_frontend.sh
+            sha256sum setup_frontend.sh | awk '{print $1}' > .frontend_setup_status
+          else
+            echo "Frontend setup script already executed with no changes."
+          fi
+        else
+          echo "setup_frontend.sh not found."
+        fi
+      shell: bash
+
+    # Commit status updates (optional)
+    - name: Commit setup status
+      if: ${{ github.ref_name == 'main' }}
+      run: |
+        git config user.name "GitHub Actions"
+        git config user.email "actions@github.com"
+        git add .backend_setup_status .frontend_setup_status
+        git commit -m "Update setup status files" || echo "No changes to commit"
+        git push
